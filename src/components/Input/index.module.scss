@@ -1,0 +1,39 @@
+@use '@/styles/mixins/screen';
+@use '@/styles/mixins/common';
+
+.input {
+  outline: none;
+  display: inline-block;
+  appearance: none;
+  border: 1px solid var(--color-input-border);
+  border-radius: var(--border-radius, 3px);
+  color: var(--color-primary-text);
+
+  width: 100%;
+  background: transparent;
+  padding: 8px 12px;
+  font-size: 14px;
+
+  @include common.transition(out);
+
+  &:hover {
+    border-color: var(--color-input-border-dark);
+    @include common.transition(in);
+  }
+
+  &:focus {
+    border-color: var(--color-primary);
+    box-shadow: var(--color-primary) 0px 0px 0px 1px;
+    @include common.transition(in);
+  }
+
+  &::placeholder {
+    color: inherit;
+    opacity: 0.4;
+  }
+
+  &.disabled {
+    // background: var(--color-background-lightgray);
+    // color: var(--color-text-disabled);
+  }
+}

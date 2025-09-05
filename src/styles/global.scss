@@ -1,0 +1,85 @@
+@use '@/styles/common';
+
+@font-face {
+  font-family: Emoji;
+  unicode-range: U+1F000-1F644, U+203C-3299;
+  src:
+    local('Apple Color Emoji'), local('Segoe UI Emoji'),
+    local('Segoe UI Symbol'), local('Noto Color Emoji');
+}
+
+html,
+body {
+  height: 100%;
+  -webkit-font-smoothing: auto;
+
+  text-size-adjust: 100%;
+
+  font-family:
+    -apple-system,
+    Segoe UI,
+    /*  windows */ Roboto,
+    /*  android */ Helvetica,
+    /* macos/ios */ Arial,
+    /* old windows */ sans-serif,
+    /* old android */ Ubuntu,
+    Noto Sans SC,
+    Source Han Sans SC,
+    PingFang SC,
+    Emoji;
+}
+
+html {
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+}
+
+:root {
+  --transition-property:
+    background-color, border-color, color, fill, stroke, opacity, box-shadow,
+    transform;
+  --transition-duration: 0.2s;
+
+  --transition-timing-function-in: cubic-bezier(0.23, 1, 0.32, 1);
+  --transition-timing-function-out: cubic-bezier(0.755, 0.05, 0.855, 0.06);
+
+  --z-index-navbar: 1000;
+
+  --color-highlight-p: #66d0d1;
+}
+
+.view-transition-pointer:active-view-transition {
+  cursor: pointer;
+}
+
+.view-transition *:not([data-comp='Theme']):not([data-comp='Theme'] *) {
+  transition: unset !important;
+}
+
+.view-transition::view-transition {
+}
+
+.view-transition::view-transition-group(root) {
+  animation-duration: 0.3s;
+}
+
+.view-transition::view-transition-new(root) {
+  mask: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40"><defs><filter id="blur"><feGaussianBlur stdDeviation="2"/></filter></defs><circle cx="40" cy="0" r="18" fill="white" filter="url(%23blur)"/></svg>')
+    top right / 0 no-repeat;
+  mask-origin: content-box;
+  animation: t-scale 0.7s;
+  transform-origin: top right;
+}
+
+.view-transition::view-transition-old(root),
+.view-transition::view-transition-old(root) {
+  animation: t-scale 0.3s;
+  transform-origin: top right;
+  z-index: -1;
+}
+
+@keyframes t-scale {
+  to {
+    mask-size: 350vmax;
+  }
+}

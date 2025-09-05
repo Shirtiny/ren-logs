@@ -1,0 +1,9 @@
+{
+    "cSpell.words": [
+        "RELS",
+        "sitepath",
+        "tauri"
+    ],
+    "typescript.tsdk": "node_modules/typescript/lib",
+    "cssModules.camelCase": true
+}

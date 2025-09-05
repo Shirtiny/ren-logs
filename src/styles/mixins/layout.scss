@@ -1,0 +1,22 @@
+@mixin flex-gap($row, $col, $direction: row) {
+  gap: 0;
+
+  &>:not(:last-child) {
+    @if $col {
+      margin-right: $col;
+    }
+  }
+
+  @if $row {
+    &>* {
+      margin-bottom: $row;
+
+      @if $direction == column {
+        &:last-child {
+          margin-bottom: 0;
+        }
+      }
+
+    }
+  }
+}

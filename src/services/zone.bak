@@ -1,0 +1,48 @@
+import callingCodes from 'country-calling-code';
+import moment from 'moment-timezone';
+
+const defaultIsoCode = 'US';
+
+const formatIsoCode = (input) => String(input).trim().toUpperCase();
+
+// 客户端所在的国家
+const getClientIsoCode = () => {
+  const zoneName = moment.tz.guess(true);
+  const zone = moment.tz.zone(zoneName);
+  if (!zone) return defaultIsoCode;
+
+  const codes = zone.countries();
+  if (!Array.isArray(codes) || !codes.length) return defaultIsoCode;
+
+  return formatIsoCode(codes[0]);
+};
+
+// 通过国家code 获取该国的拨号
+const findCallingCode = (isoCode) => {
+  const defaultResult = '';
+  if (!isoCode) return defaultResult;
+
+  const callingCode = callingCodes.find((item) => {
+    const { isoCode2, isoCode3 } = item;
+    return [isoCode2, isoCode3].includes(formatIsoCode(isoCode));
+  });
+
+  const { countryCodes } = callingCode;
+  if (!countryCodes.length) return defaultResult;
+  return countryCodes[0];
+};
+
+// 上面两个的结合 直接获取到客户端所在国家的拨号
+const getClientCallingCode = () => {
+  const isoCode = getClientIsoCode();
+  return findCallingCode(isoCode);
+};
+
+const zone = {
+  getClientIsoCode,
+  findCallingCode,
+
+  getClientCallingCode,
+};
+
+export default zone;

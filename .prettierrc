@@ -1,0 +1,42 @@
+{
+  "singleQuote": true,
+  "semi": true,
+  "trailingComma": "all",
+  "printWidth": 80,
+  "tabWidth": 2,
+  "useTabs": false,
+  "bracketSpacing": true,
+  "overrides": [
+    {
+      "files": ".prettierrc",
+      "options": {
+        "parser": "json"
+      }
+    }
+  ],
+  "plugins": [
+    "@trivago/prettier-plugin-sort-imports",
+    "prettier-plugin-css-order"
+  ],
+  "cssDeclarationSorterOrder": "smacss",
+  "cssDeclarationSorterKeepOverrides": false,
+  "cssDeclarationSorterCustomOrder": [
+    "transform",
+    "transition"
+  ],
+  "importOrder": [
+    "^clsx$",
+    "^lodash-es$",
+    "^react$",
+    "^react-dom",
+    "^react-router$",
+    "<THIRD_PARTY_MODULES>",
+    "^@/components(.*)$",
+    "^@/(.*)$",
+    "^../(.*)",
+    "^./((?!.*\\.(css|scss)).)*$",
+    "^(pepjs|normalize\\.css|reset-css)$",
+    "^./.*\\.(css|scss)(?<!global\\.scss)$",
+    "^./styles/global\\.scss$"
+  ]
+}

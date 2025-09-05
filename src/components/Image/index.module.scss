@@ -1,0 +1,8 @@
+.image-container {
+    &>img {
+        object-fit: contain;
+        vertical-align: top;
+        height: 100%;
+        width: 100%;
+    }
+}

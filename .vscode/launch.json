@@ -1,0 +1,18 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Launch Debug",
+      "type": "chrome",
+      "request": "launch",
+      "runtimeExecutable": "canary",
+      "url": "http://localhost:2025",
+      "urlFilter": "http://localhost:2025*",
+      "webRoot": "${workspaceFolder}",
+      "userDataDir": "~/chrome-debug-profile",
+      "preLaunchTask": "start-dev-server",
+      "cleanUp": "onlyTab"
+      // "postDebugTask": "stop-dev-server"
+    }
+  ]
+}

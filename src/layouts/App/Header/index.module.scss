@@ -1,0 +1,12 @@
+.app-header {
+  z-index: var(--z-index-navbar);
+
+  @at-root {
+    html[data-theme='abyss'] & {
+      .brand {
+        filter: contrast(0); // 保底
+        filter: invert(90%); //色彩反相效果
+      }
+    }
+  }
+}

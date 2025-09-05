@@ -1,0 +1,24 @@
+// $sample: 10px !default; // 最低优先级的声明
+
+$dot-width: 10px !default;
+$dot-height: 10px !default;
+$dot-radius: $dot-width * 0.5 !default;
+
+$dot-color: #66d0d1 !default;
+$dot-bg-color: $dot-color !default;
+$dot-before-color: $dot-color !default;
+$dot-after-color: $dot-color !default;
+
+$dot-spacing: $dot-width + $dot-width * 0.5 !default;
+
+// 断点
+$breakpointMap: (
+  'xs': 375px,
+  'sm': 600px,
+  'md': 875px,
+  'lg': 1200px,
+  'xl': 1440px,
+  '2xl': 1620px,
+  '3xl': 1700px,
+  'standard': 1920px,
+);

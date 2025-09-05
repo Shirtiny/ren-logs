@@ -1,0 +1,48 @@
+@use "../variables" as variables;
+
+
+// -eg: @include breakpoint(md, '>') {width: auto;}
+@mixin breakpoint($name, $compare: '<=') {
+
+  @if map-has-key(variables.$breakpointMap, $name) {
+    @media only screen and (#{width $compare map-get(variables.$breakpointMap, $name)}) {
+      @content;
+    }
+  }
+
+  @else {
+    @warn "#{$name} doesn't exist in $breakpointMap . ";
+  }
+}
+
+// -eg: @include screen.width(784px, '>') {width: auto;}
+@mixin width ($width, $compare: '>') {
+  $widthV: if(map-has-key(variables.$breakpointMap, $width), map-get(variables.$breakpointMap, $width), $width);
+  @media only screen and (#{width $compare $widthV}) {
+    @content;
+  }
+}
+
+// -eg screen.range(784px, lg) {width: auto;}
+@mixin range ($min, $max) {
+  $minV: if(map-has-key(variables.$breakpointMap, $min), map-get(variables.$breakpointMap, $min), $min);
+  $maxV: if(map-has-key(variables.$breakpointMap, $max), map-get(variables.$breakpointMap, $max), $max);
+
+  @media only screen and (#{$minV '<=' width '<=' $maxV}) {
+    @content;
+  }
+}
+
+@mixin pc() {
+  // md(875px)以上是pc
+  @include breakpoint(md, '>') {
+    @content;
+  }
+}
+
+@mixin wap() {
+  // md(875px)以下是wap 包含875
+  @include breakpoint(md, '<=') {
+    @content;
+  }
+}

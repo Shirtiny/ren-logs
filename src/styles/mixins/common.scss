@@ -1,0 +1,25 @@
+@use "../variables";
+
+@mixin dot(
+  $width: variables.$dot-width,
+  $height: variables.$dot-height,
+  $radius: variables.$dot-radius,
+  $bg-color: variables.$dot-bg-color,
+  $color: variables.$dot-color
+) {
+  width: $width;
+  height: $height;
+  border-radius: $radius;
+  background-color: $bg-color;
+  color: $color;
+}
+
+@mixin transition($type: in) {
+  transition-property: var(--transition-property);
+  transition-duration: var(--transition-duration);
+  transition-timing-function: if(
+    $type == out,
+    var(--transition-timing-function-out),
+    var(--transition-timing-function-in)
+  );
+}
