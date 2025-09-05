@@ -1,4 +1,5 @@
 /* eslint-disable react-compiler/react-compiler */
+import clsx from 'clsx';
 import { FC, useEffect, useLayoutEffect, useState } from 'react';
 import { useNavigation } from 'react-router';
 import { useTranslate } from '@tolgee/react';
@@ -39,7 +40,10 @@ const AppLayout: FC<IProps> = ({
   }, [isMobile]);
 
   return (
-    <div className={css.appLayout} {...rest}>
+    <div
+      className={clsx(css.appLayout, 'bg-base-100/30 hover:bg-base-100/80 transition-colors')}
+      {...rest}
+    >
       {navigation.state === 'loading' && <RouterLoading />}
       <Header />
       <main className={css.main}>{children}</main>
