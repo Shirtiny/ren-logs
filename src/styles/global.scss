@@ -35,6 +35,8 @@ html {
 }
 
 :root {
+  --ui-root-bg: oklch(from var(--color-base-100) l c h / 0.5);
+
   --transition-property:
     background-color, border-color, color, fill, stroke, opacity, box-shadow,
     transform;

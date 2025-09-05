@@ -1,10 +1,45 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
-  "identifier": "default",
-  "description": "Capability for the main window",
-  "windows": ["main"],
+  "identifier": "desktop-capability",
+  "description": "Capability for window",
+  "windows": [
+    "logs",
+    "main",
+    "mini"
+  ],
   "permissions": [
     "core:default",
-    "opener:default"
+    "fs:allow-read-file",
+    {
+      "identifier": "fs:scope",
+      "allow": [
+        "$RESOURCE/*",
+        "$RESOURCE/lang/*",
+        "$RESOURCE/lang/*/*",
+        "$RESOURCE/assets/*",
+        "$RESOURCE/assets/*/*"
+      ]
+    },
+    "core:window:allow-hide",
+    "core:window:allow-show",
+    "core:window:allow-set-focus",
+    "core:window:allow-set-ignore-cursor-events",
+    "core:window:allow-start-dragging",
+    "core:window:allow-unminimize",
+    "core:window:allow-minimize",
+    "core:window:allow-maximize",
+    "core:window:allow-unmaximize",
+    "core:window:allow-close",
+    "core:window:allow-set-always-on-top",
+    "clipboard-manager:allow-write-image",
+    "global-shortcut:allow-register",
+    "global-shortcut:allow-unregister-all",
+    "opener:allow-open-url",
+    "opener:allow-default-urls",
+    "process:allow-restart",
+    "updater:default",
+    "shell:allow-open",
+    "shell:default",
+    "fs:default"
   ]
 }

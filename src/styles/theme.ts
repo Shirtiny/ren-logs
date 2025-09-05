@@ -1,6 +1,6 @@
 import dom from '@shirtiny/utils/lib/dom';
 
-const THEME_STORAGE_KEY = 'leact-theme';
+const THEME_STORAGE_KEY = 'ren-logs-theme';
 
 const config = [
   { rel: 'icon', file: '/favicon.ico' },
@@ -27,7 +27,7 @@ const config = [
 
 export enum ColorThemes {
   DARK = 'abyss',
-  LIGHT = 'light',
+  LIGHT = 'cupcake',
 }
 
 const setIcons = (themeColor: ColorThemes) => {
@@ -94,12 +94,13 @@ const toggleTheme = () => {
 };
 
 const initTheme = () => {
-  let initialTheme = localStorage.getItem('leact-theme');
+  let initialTheme = localStorage.getItem(THEME_STORAGE_KEY);
 
   if (!initialTheme) {
-    initialTheme = window.matchMedia('(prefers-color-scheme: dark)').matches
-      ? ColorThemes.DARK
-      : ColorThemes.LIGHT;
+    initialTheme = ColorThemes.DARK;
+    // initialTheme = window.matchMedia('(prefers-color-scheme: dark)').matches
+    //   ? ColorThemes.DARK
+    //   : ColorThemes.LIGHT;
   } else {
     initialTheme =
       initialTheme === ColorThemes.LIGHT ? ColorThemes.LIGHT : ColorThemes.DARK;
