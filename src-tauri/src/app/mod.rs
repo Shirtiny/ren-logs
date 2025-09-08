@@ -33,7 +33,7 @@ impl AppState {
             return;
         }
 
-        let mut logger = Logger::try_with_str("info, tao=off")
+        let mut logger = Logger::try_with_str("debug, tao=off")
             .unwrap()
             .log_to_file(
                 FileSpec::default()

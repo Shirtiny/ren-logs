@@ -8,7 +8,7 @@ pub mod decryption;
 pub mod packets;
 
 // Re-export main interfaces
-pub use capture::start_capture;
+pub use capture::{start_capture, reset_server_identification};
 pub use decryption::DamageEncryptionHandler;
 pub use packets::{definitions, opcodes, structures};
 
@@ -73,5 +73,35 @@ pub mod utils {
         let exe_dir = exe_path.parent().unwrap_or(std::path::Path::new("."));
 
         exe_dir.join("WinDivert64.sys").exists() || exe_dir.join("WinDivert32.sys").exists()
+    }
+
+    /// Check if the current process has administrator privileges
+    pub fn is_admin() -> bool {
+        #[cfg(windows)]
+        {
+            use std::mem;
+            use winapi::um::processthreadsapi::{GetCurrentProcess, OpenProcessToken};
+            use winapi::um::securitybaseapi::GetTokenInformation;
+            use winapi::um::winnt::{TokenElevation, TOKEN_ELEVATION, TOKEN_QUERY};
+
+            unsafe {
+                let mut token = mem::zeroed();
+                let mut elevation: TOKEN_ELEVATION = mem::zeroed();
+                let mut size = mem::size_of::<TOKEN_ELEVATION>() as u32;
+
+                if OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &mut token) != 0 {
+                    if GetTokenInformation(token, TokenElevation, &mut elevation as *mut _ as *mut _, size, &mut size) != 0 {
+                        return elevation.TokenIsElevated != 0;
+                    }
+                }
+            }
+            false
+        }
+
+        #[cfg(not(windows))]
+        {
+            // On non-Windows platforms, assume admin privileges
+            true
+        }
     }
 }

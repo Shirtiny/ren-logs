@@ -2,6 +2,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod app;
+mod live;
 
 use anyhow::Result;
 use log::{error, info, warn};
@@ -62,7 +63,6 @@ async fn main() -> Result<()> {
             //     warn!("error setting up database: {e}");
             // }
 
-            // setup_tray(app.handle())?;
 
             let app_path = std::env::current_exe()?.display().to_string();
             app.manage(AutoLaunchManager::new(&app.package_info().name, &app_path));
@@ -81,6 +81,8 @@ async fn main() -> Result<()> {
 
             // Setup system tray
             setup_tray(app);
+            
+            setup_live(app);
 
             Ok(())
         })
@@ -88,6 +90,20 @@ async fn main() -> Result<()> {
         .expect("error while running application");
 
     Ok(())
+}
+
+fn setup_live(app: &tauri::App) {
+    let app = app.app_handle().clone();
+                tokio::task::spawn_blocking(move || {
+                    // only start listening when there's no update, otherwise unable to remove driver
+                    // while !update_checked.load(Ordering::Relaxed) {
+                    //     std::thread::sleep(std::time::Duration::from_millis(100));
+                    // }
+                    
+                    live::start(app).map_err(|e| {
+                        error!("unexpected error occurred in parser: {e}");
+                    })
+                });
 }
 
 #[tauri::command]

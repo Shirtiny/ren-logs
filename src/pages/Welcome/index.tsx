@@ -9,9 +9,7 @@ const Component = () => {
 
   return (
     <div className="page page-welcome">
-      <div>
-        <Button className="">Demo</Button>
-      </div>
+      <div></div>
     </div>
   );
 };
