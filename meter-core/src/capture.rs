@@ -25,6 +25,8 @@ lazy_static::lazy_static! {
     // 调试计数器
     static ref PACKET_COUNTER: AtomicU64 = AtomicU64::new(0);
     static ref FILTERED_PACKETS: AtomicU64 = AtomicU64::new(0);
+    // 服务器切换检测计数器
+    static ref MISMATCHED_PACKETS: Arc<Mutex<u32>> = Arc::new(Mutex::new(0));
 }
 
 /// 数据包捕获配置
@@ -438,7 +440,7 @@ async fn process_packet(packet_data: &[u8], tx: &Sender<(u16, Vec<u8>)>) -> Resu
     if *current_server != src_server {
         if !server_identified {
             // 服务器未识别，记录数据包并尝试识别
-            log::info!(
+            log::debug!(
                 "📦 #{}: {}:{} -> {}:{} | 序列号: {} | Payload: {} bytes",
                 packet_count,
                 src_ip,
@@ -484,20 +486,51 @@ async fn process_packet(packet_data: &[u8], tx: &Sender<(u16, Vec<u8>)>) -> Resu
             // 服务器已识别，检查是否是已识别的服务器（双向匹配）
             let reverse_server = format!("{}:{} -> {}:{}", dst_ip, dst_port, src_ip, src_port);
             if *current_server != src_server && *current_server != reverse_server {
-                // 不是已识别的服务器，跳过
-                let filtered_count = FILTERED_PACKETS.fetch_add(1, Ordering::SeqCst);
-                // log::debug!(
-                //     "❌ 跳过非目标服务器数据包 #{}: {} (总过滤: {})",
-                //     packet_count,
-                //     src_server,
-                //     filtered_count
-                // );
-                drop(current_server);
-                drop(_lock);
-                return Ok(());
+                // 不是已识别的服务器，增加不匹配计数器
+                let mut mismatched_packets = MISMATCHED_PACKETS.lock().await;
+                *mismatched_packets += 1;
+
+                log::debug!(
+                    "⚠️ 检测到非目标服务器数据包 #{}: {} (当前服务器: {}, 不匹配计数: {})",
+                    packet_count,
+                    src_server,
+                    *current_server,
+                    *mismatched_packets
+                );
+
+                // 如果连续不匹配数据包数量超过阈值，触发服务器切换
+                const SWITCH_THRESHOLD: u32 = 5;
+                if *mismatched_packets >= SWITCH_THRESHOLD {
+                    log::warn!("🔄 检测到服务器切换！连续{}个数据包来自不同服务器", SWITCH_THRESHOLD);
+                    log::warn!("🔄 当前服务器: {}", *current_server);
+                    log::warn!("🔄 新服务器地址: {}", src_server);
+
+                    // 重置服务器识别状态
+                    drop(current_server); // 释放锁
+                    drop(mismatched_packets); // 释放锁
+
+                    reset_server_identification().await;
+
+                    log::info!("🔄 服务器切换处理完成，等待新数据包重新识别");
+
+                    drop(_lock);
+                    return Ok(());
+                } else {
+                    drop(current_server);
+                    drop(mismatched_packets);
+                    drop(_lock);
+                    return Ok(());
+                }
             } else {
-                // 是已识别的服务器，记录数据包
-                log::info!(
+                // 是已识别的服务器，重置不匹配计数器
+                let mut mismatched_packets = MISMATCHED_PACKETS.lock().await;
+                if *mismatched_packets > 0 {
+                    log::debug!("✅ 服务器匹配，重置不匹配计数器 (之前: {})", *mismatched_packets);
+                    *mismatched_packets = 0;
+                }
+
+                // 记录数据包
+                log::debug!(
                     "📦 #{}: {}:{} -> {}:{} | 序列号: {} | Payload: {} bytes",
                     packet_count,
                     src_ip,
@@ -511,7 +544,7 @@ async fn process_packet(packet_data: &[u8], tx: &Sender<(u16, Vec<u8>)>) -> Resu
         }
     } else {
         // 是已识别的服务器，记录数据包
-        log::info!(
+        log::debug!(
             "📦 #{}: {}:{} -> {}:{} | 序列号: {} | Payload: {} bytes",
             packet_count,
             src_ip,
@@ -648,15 +681,17 @@ async fn process_data_buffer(
 
                 log::debug!("🔍 数据包格式检查通过 - Opcode: 0x{:04x}, 数据大小: {} bytes", opcode, data.len());
 
-                // 记录服务器通信数据包的完整载荷
-                log::info!(
-                    "📤 [服务器通信] Opcode: 0x{:04x} | 载荷大小: {} bytes",
-                    opcode,
-                    data.len()
-                );
-                if !data.is_empty() {
-                    let hex_dump = format_hex_dump(&data);
-                    log::info!("📦 载荷数据:\n{}", hex_dump);
+                // 记录服务器通信数据包的完整载荷（过滤掉4字节的小包）
+                if data.len() > 4 {
+                    log::info!(
+                        "📤 [服务器通信] Opcode: 0x{:04x} | 载荷大小: {} bytes",
+                        opcode,
+                        data.len()
+                    );
+                    if !data.is_empty() {
+                        let hex_dump = format_hex_dump(&data);
+                        log::info!("📦 载荷数据:\n{}", hex_dump);
+                    }
                 }
 
                 log::debug!(
@@ -697,6 +732,10 @@ pub async fn reset_server_identification() {
 
     let mut current_server = CURRENT_SERVER.lock().await;
     *current_server = String::new();
+
+    // 重置不匹配计数器
+    let mut mismatched_packets = MISMATCHED_PACKETS.lock().await;
+    *mismatched_packets = 0;
 
     clear_tcp_cache().await;
 
