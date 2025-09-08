@@ -4,7 +4,7 @@
 mod app;
 
 use anyhow::Result;
-use log::{error, info};
+use log::{error, info, warn};
 use std::sync::atomic::{AtomicBool, Ordering};
 use tauri::{Emitter, Manager, State, menu::MenuBuilder};
 use tauri_plugin_window_state::{StateFlags, WindowExt};
@@ -12,7 +12,6 @@ use tauri_plugin_window_state::{StateFlags, WindowExt};
 use crate::app::autostart::AutoLaunchManager;
 
 const METER_WINDOW_LABEL: &str = "main";
-const METER_MINI_WINDOW_LABEL: &str = "mini";
 const LOGS_WINDOW_LABEL: &str = "logs";
 const WINDOW_STATE_FLAGS: StateFlags = StateFlags::from_bits_truncate(
     StateFlags::FULLSCREEN.bits()
@@ -52,7 +51,9 @@ async fn main() -> Result<()> {
         .manage(ClickThrough(AtomicBool::new(false)))
         .invoke_handler(tauri::generate_handler![
             toggle_always_on_top,
-            toggle_clickthrough
+            toggle_clickthrough,
+            remove_driver,
+            stop_driver,
         ])
         .setup(|app| {
             info!("starting app v{}", app.package_info().version);
@@ -87,6 +88,32 @@ async fn main() -> Result<()> {
         .expect("error while running application");
 
     Ok(())
+}
+
+#[tauri::command]
+fn remove_driver() {
+    #[cfg(target_os = "windows")]
+    {
+        use app::compat::Command;
+        let status = Command::new("sc").args(["delete", "windivert"]).status();
+
+        status.expect("unable to delete driver");
+    }
+}
+
+#[tauri::command]
+fn stop_driver() {
+    #[cfg(target_os = "windows")]
+    {
+        use app::compat::Command;
+        let status = Command::new("sc").args(["stop", "windivert"]).status();
+
+        if status.is_ok_and(|status| status.success()) {
+            info!("stopped driver");
+        } else {
+            warn!("could not execute command to stop driver");
+        }
+    }
 }
 
 #[tauri::command]
