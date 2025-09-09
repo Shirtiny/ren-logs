@@ -50,6 +50,7 @@ moka = { version = "0.12.7", features = ["sync"] }
 rsntp = { version = "4.0.0", default-features = false, features = ["chrono"]  }
 flate2 = "1.0.30"
 sysinfo = "0.35.1"
+rdev = "0.5.3"
 meter-core = { path = "../meter-core" }
 
 # [features]

@@ -5,10 +5,11 @@
 
 pub mod capture;
 pub mod decryption;
+pub mod forge;
 pub mod packets;
 
 // Re-export main interfaces
-pub use capture::{start_capture, reset_server_identification};
+pub use capture::{start_capture, reset_server_identification, send_forged_packets_simple};
 pub use decryption::DamageEncryptionHandler;
 pub use packets::{definitions, opcodes, structures};
 

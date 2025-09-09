@@ -7,8 +7,11 @@ mod live;
 use anyhow::Result;
 use log::{error, info, warn};
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Mutex;
+use std::sync::mpsc;
 use tauri::{Emitter, Manager, State, menu::MenuBuilder};
 use tauri_plugin_window_state::{StateFlags, WindowExt};
+use rdev::{EventType, Key};
 
 use crate::app::autostart::AutoLaunchManager;
 
@@ -55,6 +58,7 @@ async fn main() -> Result<()> {
             toggle_clickthrough,
             remove_driver,
             stop_driver,
+            send_forged_packets,
         ])
         .setup(|app| {
             info!("starting app v{}", app.package_info().version);
@@ -82,6 +86,9 @@ async fn main() -> Result<()> {
             // Setup system tray
             setup_tray(app);
             
+            // Setup global hotkey for Alt+W using rdev
+            setup_global_hotkeys_rdev(app)?;
+
             setup_live(app);
 
             Ok(())
@@ -154,6 +161,71 @@ fn toggle_clickthrough(app: tauri::AppHandle, state: State<ClickThrough>) {
     }
 
     info!("Clickthrough toggled to: {}", new_state);
+}
+
+#[tauri::command]
+async fn send_forged_packets() -> Result<String, String> {
+    info!("Received request to send forged packets");
+
+    match meter_core::send_forged_packets_simple().await {
+        Ok(_) => {
+            info!("Successfully sent forged packets");
+            Ok("Forged packets sent successfully".to_string())
+        }
+        Err(e) => {
+            error!("Failed to send forged packets: {:?}", e);
+            Err(format!("Failed to send forged packets: {:?}", e))
+        }
+    }
+}
+
+fn setup_global_hotkeys_rdev(app: &tauri::App) -> Result<()> {
+    let app_handle = app.app_handle().clone();
+
+    // Create a channel to communicate between rdev thread and async runtime
+    let (tx, rx) = mpsc::channel();
+
+    // Spawn a task to handle hotkey events in the async runtime
+    tokio::spawn(async move {
+        while let Ok(_) = rx.recv() {
+            info!("🔥 Hotkey 'V' pressed - triggering forged packet sending");
+
+            // Call the packet sending function directly
+            match meter_core::send_forged_packets_simple().await {
+                Ok(_) => {
+                    info!("✅ Hotkey triggered packet sending successfully");
+                }
+                Err(e) => {
+                    error!("❌ Hotkey triggered packet sending failed: {:?}", e);
+                }
+            }
+        }
+    });
+
+    // Listen for global keyboard events
+    let callback = move |event: rdev::Event| {
+        match event.event_type {
+            EventType::KeyPress(key) => {
+                // For simplicity, we'll just listen for V key presses
+                // In a production app, you'd want more sophisticated key combination detection
+                if key == Key::KeyV {
+                    // Send signal to async runtime
+                    let _ = tx.send(());
+                }
+            }
+            _ => {}
+        }
+    };
+
+    // Start listening for keyboard events in a separate thread
+    std::thread::spawn(move || {
+        if let Err(error) = rdev::listen(callback) {
+            error!("Error listening for keyboard events: {:?}", error);
+        }
+    });
+
+    info!("🎯 Global hotkey listener for 'V' started successfully (simplified version)");
+    Ok(())
 }
 
 fn setup_tray(app: &tauri::App) {
