@@ -33,7 +33,8 @@ impl AppState {
             return;
         }
 
-        let mut logger = Logger::try_with_str("info, tao=off")
+        // Use debug level to capture meter-core debug logs
+        let mut logger = Logger::try_with_str("debug, tao=off, meter_core=debug")
             .unwrap()
             .log_to_file(
                 FileSpec::default()
@@ -51,10 +52,8 @@ impl AppState {
                 Cleanup::KeepLogFiles(2),
             );
 
-        #[cfg(debug_assertions)]
-        {
-            logger = logger.duplicate_to_stdout(Duplicate::All);
-        }
+        // Always duplicate to stdout for console visibility
+        logger = logger.duplicate_to_stdout(Duplicate::All);
 
         self.logger_handle = Some(logger.start().unwrap());
     }

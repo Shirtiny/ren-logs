@@ -24,8 +24,7 @@ test:
 
 build:init
 	@echo "👩‍🏭 Building..."
-	pnpm build
-	pnpm site
+	pnpm tauri build
 	
 start:clean
 	pnpm desktop

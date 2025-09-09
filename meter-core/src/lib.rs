@@ -1,107 +1,192 @@
-//! # Meter Core
-//!
-//! A custom implementation of the meter-core crate for LOA Logs,
-//! providing network packet capture and parsing functionality using WinDivert.
+pub mod models;
+pub mod data_manager;
+pub mod packet_parser;
+pub mod packet_capture;
+pub mod web_server;
+pub mod config;
 
-pub mod capture;
-pub mod decryption;
-pub mod packets;
+use std::sync::Arc;
+use tokio::sync::{Mutex, RwLock};
+use std::collections::HashMap;
+use chrono::Utc;
+use log::{info, warn, error};
+use tokio::task::JoinHandle;
 
-// Re-export main interfaces
-pub use capture::{start_capture, reset_server_identification};
-pub use decryption::DamageEncryptionHandler;
-pub use packets::{definitions, opcodes, structures};
+use data_manager::DataManager;
+use packet_capture::PacketCapture;
+use web_server::WebServer;
+use config::{AppConfig, AppArgs};
 
-// Error handling
-use thiserror::Error;
-
-#[derive(Error, Debug)]
-pub enum MeterError {
-    #[error("WinDivert error: {0}")]
-    WinDivertError(String),
-
-    #[error("Packet parsing error: {0}")]
-    ParseError(String),
-
-    #[error("Decryption error: {0}")]
-    DecryptionError(String),
-
-    #[error("IO error: {0}")]
-    IoError(#[from] std::io::Error),
-
-    #[error("Serialization error: {0}")]
-    SerdeError(#[from] serde_json::Error),
-
-    #[error("Generic error: {0}")]
-    GenericError(#[from] anyhow::Error),
+pub struct MeterCore {
+    data_manager: Arc<DataManager>,
+    packet_capture: Option<PacketCapture>,
+    web_server: Option<WebServer>,
+    tasks: Vec<JoinHandle<()>>,
+    config: AppConfig,
 }
 
-pub type Result<T> = std::result::Result<T, MeterError>;
+impl MeterCore {
+    /// Create a new MeterCore instance for standalone use
+    pub async fn new() -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
+        Self::new_with_config_mode(false).await
+    }
 
-// Common utilities
-pub mod utils {
-    use std::path::PathBuf;
+    /// Create a new MeterCore instance with Tauri configuration
+    pub async fn new_with_config() -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
+        Self::new_with_config_mode(true).await
+    }
 
-    /// Get the default WinDivert DLL path
-    pub fn get_windivert_dll_path() -> PathBuf {
-        // Try to find WinDivert.dll in common locations
-        let exe_path = std::env::current_exe().unwrap_or_default();
-        let exe_dir = exe_path.parent().unwrap_or(std::path::Path::new("."));
+    /// Internal method to create MeterCore with configuration mode
+    async fn new_with_config_mode(use_tauri_config: bool) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
+        // Parse command line arguments
+        let args = AppArgs::parse();
 
-        // Check current directory first
-        let dll_path = exe_dir.join("WinDivert.dll");
-        if dll_path.exists() {
-            return dll_path;
+        // Load configuration based on mode (needed for logging setup)
+        let config = if use_tauri_config {
+            AppConfig::load_for_tauri().unwrap_or_else(|e| {
+                eprintln!("Failed to load Tauri configuration: {}, using defaults", e);
+                AppConfig::default()
+            })
+        } else {
+            AppConfig::load_for_standalone().unwrap_or_else(|e| {
+                eprintln!("Failed to load standalone configuration: {}, using defaults", e);
+                AppConfig::default()
+            })
+        };
+
+        // Initialize logging (only if not already initialized)
+        let log_level = args.log_level.as_deref()
+            .unwrap_or(&config.logging.level);
+        if let Err(_) = env_logger::try_init_from_env(env_logger::Env::default().default_filter_or(log_level)) {
+            // Logger already initialized, skip
         }
 
-        // Check system32
-        if let Ok(system32) = std::env::var("SystemRoot") {
-            let sys_dll = PathBuf::from(system32).join("System32").join("WinDivert.dll");
-            if sys_dll.exists() {
-                return sys_dll;
+        info!("Starting Meter Core - Star Resonance Damage Counter");
+
+        // Validate configuration
+        if let Err(errors) = config.validate() {
+            error!("Configuration validation failed:");
+            for error in errors {
+                error!("  - {}", error);
             }
+            return Err("Configuration validation failed".into());
         }
 
-        // Return current directory as fallback
-        dll_path
+        info!("Configuration loaded successfully");
+
+        // Initialize data manager
+        let data_manager = Arc::new(DataManager::new());
+        data_manager.initialize().await?;
+
+        info!("Data manager initialized");
+
+        Ok(MeterCore {
+            data_manager,
+            packet_capture: None,
+            web_server: None,
+            tasks: Vec::new(),
+            config,
+        })
     }
 
-    /// Check if WinDivert driver is installed
-    pub fn is_windivert_installed() -> bool {
-        // Check for driver files
-        let exe_path = std::env::current_exe().unwrap_or_default();
-        let exe_dir = exe_path.parent().unwrap_or(std::path::Path::new("."));
+    pub async fn start(&mut self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        // Initialize packet capture
+        let packet_capture = PacketCapture::new(self.data_manager.clone());
+        self.packet_capture = Some(packet_capture);
 
-        exe_dir.join("WinDivert64.sys").exists() || exe_dir.join("WinDivert32.sys").exists()
-    }
+        // Initialize web server
+        let web_server = WebServer::new(self.data_manager.clone());
+        self.web_server = Some(web_server);
 
-    /// Check if the current process has administrator privileges
-    pub fn is_admin() -> bool {
-        #[cfg(windows)]
-        {
-            use std::mem;
-            use winapi::um::processthreadsapi::{GetCurrentProcess, OpenProcessToken};
-            use winapi::um::securitybaseapi::GetTokenInformation;
-            use winapi::um::winnt::{TokenElevation, TOKEN_ELEVATION, TOKEN_QUERY};
+        // Start background tasks
+        let data_manager_clone = self.data_manager.clone();
+        let update_task = tokio::spawn(async move {
+            let mut interval = tokio::time::interval(std::time::Duration::from_millis(100));
+            loop {
+                interval.tick().await;
+                if !data_manager_clone.is_paused() {
+                    data_manager_clone.update_dps();
+                    data_manager_clone.update_hps();
+                }
+                data_manager_clone.check_timeout_clear();
+            }
+        });
+        self.tasks.push(update_task);
 
-            unsafe {
-                let mut token = mem::zeroed();
-                let mut elevation: TOKEN_ELEVATION = mem::zeroed();
-                let mut size = mem::size_of::<TOKEN_ELEVATION>() as u32;
-
-                if OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &mut token) != 0 {
-                    if GetTokenInformation(token, TokenElevation, &mut elevation as *mut _ as *mut _, size, &mut size) != 0 {
-                        return elevation.TokenIsElevated != 0;
-                    }
+        // Start auto-save task
+        let data_manager_clone = self.data_manager.clone();
+        let save_task = tokio::spawn(async move {
+            let mut interval = tokio::time::interval(std::time::Duration::from_secs(300)); // 5 minutes
+            loop {
+                interval.tick().await;
+                if let Err(e) = data_manager_clone.save_user_cache().await {
+                    error!("Failed to auto-save user cache: {}", e);
                 }
             }
-            false
+        });
+        self.tasks.push(save_task);
+
+        // Start packet capture
+        if let Some(mut packet_capture) = self.packet_capture.take() {
+            let capture_task = tokio::spawn(async move {
+                if let Err(e) = packet_capture.start_capture().await {
+                    error!("Packet capture failed: {}", e);
+                }
+            });
+            self.tasks.push(capture_task);
         }
 
-        #[cfg(not(windows))]
-        {
-            // On non-Windows platforms, assume admin privileges
-            true
+        // Start web server
+        if let Some(mut web_server) = self.web_server.take() {
+            let server_task = tokio::spawn(async move {
+                if let Err(e) = web_server.start().await {
+                    error!("Web server failed: {}", e);
+                }
+            });
+            self.tasks.push(server_task);
         }
+
+        info!("Meter Core started successfully");
+        Ok(())
+    }
+
+    pub async fn stop(&mut self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        info!("Stopping Meter Core...");
+
+        // Stop all tasks
+        for task in &self.tasks {
+            task.abort();
+        }
+        self.tasks.clear();
+
+        // Stop packet capture (this will handle WinDivert cleanup)
+        if let Some(ref mut packet_capture) = self.packet_capture {
+            // Note: PacketCapture should implement a stop method
+            // For now, we'll log the intent
+            warn!("Packet capture stop not implemented yet - WinDivert cleanup needed");
+        }
+
+        // Save final data
+        if let Err(e) = self.data_manager.save_user_cache().await {
+            error!("Failed to save user cache on shutdown: {}", e);
+        }
+
+        if let Err(e) = self.data_manager.save_settings().await {
+            error!("Failed to save settings on shutdown: {}", e);
+        }
+
+        info!("Meter Core stopped successfully");
+        Ok(())
+    }
+
+    pub fn get_data_manager(&self) -> Arc<DataManager> {
+        self.data_manager.clone()
+    }
+
+    pub fn is_running(&self) -> bool {
+        !self.tasks.is_empty()
     }
 }
+
+// Re-export for convenience
+pub use models::*;

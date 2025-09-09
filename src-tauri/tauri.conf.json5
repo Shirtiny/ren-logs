@@ -65,7 +65,8 @@
     ],
     "resources": [
       "WinDivert.dll",
-      "WinDivert64.sys"
+      "WinDivert64.sys",
+      "../meter-core/config.json"
     ],
 
   }

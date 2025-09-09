@@ -81,10 +81,50 @@ async fn main() -> Result<()> {
 
             // Setup system tray
             setup_tray(app);
-            
-            setup_live(app);
+
+            // Start meter-core synchronously
+            let app_handle = app.handle().clone();
+            tokio::task::spawn(async move {
+                if let Err(e) = live::start_sync(app_handle).await {
+                    error!("Failed to start Meter Core: {}", e);
+                }
+            });
 
             Ok(())
+        })
+        .on_window_event(|window, event| match event {
+            tauri::WindowEvent::CloseRequested { api, .. } => {
+                info!("Window close requested: {}", window.label());
+
+                // Prevent the window from being destroyed
+                api.prevent_close();
+
+                // Hide the window instead of closing it
+                let _ = window.hide();
+
+                info!("Window hidden instead of closed: {}", window.label());
+            }
+            tauri::WindowEvent::Destroyed => {
+                info!("Window destroyed");
+
+                // Check if this was the last window
+                let app_handle = window.app_handle();
+                let windows = app_handle.webview_windows();
+                let remaining_windows = windows.len();
+
+                info!("Remaining windows after destroy: {}", remaining_windows);
+
+                if remaining_windows == 0 {
+                    info!("All windows closed, initiating cleanup...");
+                    let app_handle = app_handle.clone();
+                    tokio::task::spawn(async move {
+                        cleanup_on_shutdown().await;
+                        // Exit the application after cleanup
+                        app_handle.exit(0);
+                    });
+                }
+            }
+            _ => {}
         })
         .run(tauri::generate_context!())
         .expect("error while running application");
@@ -94,16 +134,34 @@ async fn main() -> Result<()> {
 
 fn setup_live(app: &tauri::App) {
     let app = app.app_handle().clone();
-                tokio::task::spawn_blocking(move || {
-                    // only start listening when there's no update, otherwise unable to remove driver
-                    // while !update_checked.load(Ordering::Relaxed) {
-                    //     std::thread::sleep(std::time::Duration::from_millis(100));
-                    // }
-                    
-                    live::start(app).map_err(|e| {
-                        error!("unexpected error occurred in parser: {e}");
-                    })
-                });
+    tokio::task::spawn_blocking(move || {
+        // only start listening when there's no update, otherwise unable to remove driver
+        // while !update_checked.load(Ordering::Relaxed) {
+        //     std::thread::sleep(std::time::Duration::from_millis(100));
+        // }
+
+        live::start(app).map_err(|e| {
+            error!("unexpected error occurred in parser: {e}");
+        })
+    });
+}
+
+async fn cleanup_on_shutdown() {
+    info!("Application is shutting down, cleaning up meter-core...");
+
+    if let Err(e) = live::stop().await {
+        error!("Error during meter-core cleanup: {}", e);
+    }
+
+    // Additional WinDivert cleanup if needed
+    #[cfg(target_os = "windows")]
+    {
+        info!("Performing WinDivert cleanup...");
+        // Log the cleanup action since actual implementation depends on packet_capture
+        warn!("WinDivert cleanup logged - implement actual driver stop if needed");
+    }
+
+    info!("Cleanup completed");
 }
 
 #[tauri::command]
@@ -222,7 +280,13 @@ fn setup_tray(app: &tauri::App) {
                     info!("Windows reset");
                 }
                 "quit" => {
-                    app.exit(0);
+                    info!("Quit requested from system tray, initiating cleanup...");
+                    let app_handle = app.clone();
+                    tokio::task::spawn(async move {
+                        cleanup_on_shutdown().await;
+                        // Exit the application after cleanup
+                        app_handle.exit(0);
+                    });
                 }
                 _ => {}
             }
