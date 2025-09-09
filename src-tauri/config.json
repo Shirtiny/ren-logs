@@ -1,6 +1,6 @@
 {
   "logging": {
-    "level": "debug",
+    "level": "info",
     "enable_file_logging": true,
     "log_file_path": "logs/meter-core.log",
     "max_log_files": 5,

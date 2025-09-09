@@ -1,19 +1,13 @@
-mod models;
-mod data_manager;
-mod packet_parser;
-mod packet_capture;
-mod web_server;
-mod config;
-
 use std::sync::Arc;
-use tokio::sync::{Mutex, RwLock};
-use std::collections::HashMap;
 use chrono::Utc;
 
-use data_manager::DataManager;
-use packet_capture::PacketCapture;
-use web_server::WebServer;
-use config::{AppConfig, AppArgs};
+use meter_core::{
+    data_manager::DataManager,
+    packet_capture::PacketCapture,
+    web_server::WebServer,
+    config::{AppConfig, AppArgs},
+    models::*,
+};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
@@ -29,7 +23,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     // Initialize logging - use config file level if command line not specified
     let log_level = args.log_level.as_deref()
         .or_else(|| Some(&config.logging.level))
-        .unwrap_or("debug");
+        .unwrap_or("info");
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or(log_level)).init();
 
     log::info!("Starting Meter Core - Star Resonance Damage Counter");
@@ -128,41 +122,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     Ok(())
 }
 
-// Error handling utilities
-#[derive(Debug)]
-pub enum MeterError {
-    Config(String),
-    Network(String),
-    Parse(String),
-    Io(std::io::Error),
-    Serde(serde_json::Error),
-}
-
-impl std::fmt::Display for MeterError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            MeterError::Config(msg) => write!(f, "Configuration error: {}", msg),
-            MeterError::Network(msg) => write!(f, "Network error: {}", msg),
-            MeterError::Parse(msg) => write!(f, "Parse error: {}", msg),
-            MeterError::Io(err) => write!(f, "IO error: {}", err),
-            MeterError::Serde(err) => write!(f, "Serialization error: {}", err),
-        }
-    }
-}
-
-impl std::error::Error for MeterError {}
-
-impl From<std::io::Error> for MeterError {
-    fn from(err: std::io::Error) -> Self {
-        MeterError::Io(err)
-    }
-}
-
-impl From<serde_json::Error> for MeterError {
-    fn from(err: serde_json::Error) -> Self {
-        MeterError::Serde(err)
-    }
-}
+// Re-export error types from lib crate
+pub use meter_core::MeterError;
 
 // Version information
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");

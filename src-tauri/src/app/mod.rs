@@ -33,8 +33,8 @@ impl AppState {
             return;
         }
 
-        // Use debug level to capture meter-core debug logs
-        let mut logger = Logger::try_with_str("debug, tao=off, meter_core=debug")
+        // Use info level for meter-core logs
+        let mut logger = Logger::try_with_str("info, tao=off, meter_core=info")
             .unwrap()
             .log_to_file(
                 FileSpec::default()

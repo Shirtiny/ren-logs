@@ -12,6 +12,128 @@ use chrono::Utc;
 use log::{info, warn, error};
 use tokio::task::JoinHandle;
 
+// Error types
+#[derive(Debug)]
+pub enum MeterError {
+    Io(std::io::Error),
+    Parse(String),
+    ParseError(String),
+    Config(String),
+    Network(String),
+    WebServer(String),
+    PacketCapture(String),
+    WinDivertError(String),
+    Json(serde_json::Error),
+    Other(String),
+}
+
+impl std::fmt::Display for MeterError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            MeterError::Io(e) => write!(f, "IO error: {}", e),
+            MeterError::Parse(s) => write!(f, "Parse error: {}", s),
+            MeterError::ParseError(s) => write!(f, "Parse error: {}", s),
+            MeterError::Config(s) => write!(f, "Config error: {}", s),
+            MeterError::Network(s) => write!(f, "Network error: {}", s),
+            MeterError::WebServer(s) => write!(f, "Web server error: {}", s),
+            MeterError::PacketCapture(s) => write!(f, "Packet capture error: {}", s),
+            MeterError::WinDivertError(s) => write!(f, "WinDivert error: {}", s),
+            MeterError::Json(e) => write!(f, "JSON error: {}", e),
+            MeterError::Other(s) => write!(f, "Other error: {}", s),
+        }
+    }
+}
+
+impl std::error::Error for MeterError {}
+
+impl From<std::io::Error> for MeterError {
+    fn from(e: std::io::Error) -> Self {
+        MeterError::Io(e)
+    }
+}
+
+impl From<serde_json::Error> for MeterError {
+    fn from(e: serde_json::Error) -> Self {
+        MeterError::Json(e)
+    }
+}
+
+impl From<&str> for MeterError {
+    fn from(s: &str) -> Self {
+        MeterError::Other(s.to_string())
+    }
+}
+
+impl From<String> for MeterError {
+    fn from(s: String) -> Self {
+        MeterError::Other(s)
+    }
+}
+
+impl From<Box<dyn std::error::Error + Send + Sync>> for MeterError {
+    fn from(e: Box<dyn std::error::Error + Send + Sync>) -> Self {
+        MeterError::Other(e.to_string())
+    }
+}
+
+// Result type alias
+pub type Result<T> = std::result::Result<T, MeterError>;
+
+// Utility functions
+pub mod utils {
+    use std::path::Path;
+
+    pub fn is_windivert_installed() -> bool {
+        // Check for WinDivert DLLs in the current directory
+        let current_dir = std::env::current_dir().unwrap_or_default();
+        let dll_path = current_dir.join("WinDivert.dll");
+
+        if dll_path.exists() {
+            log::debug!("Found WinDivert.dll at: {:?}", dll_path);
+            return true;
+        }
+
+        // Check in system directories
+        if let Ok(system32) = std::env::var("SystemRoot") {
+            let system32_path = Path::new(&system32).join("System32").join("WinDivert.dll");
+            if system32_path.exists() {
+                log::debug!("Found WinDivert.dll at: {:?}", system32_path);
+                return true;
+            }
+        }
+
+        log::warn!("WinDivert.dll not found");
+        false
+    }
+
+    pub fn is_admin() -> bool {
+        // Simple check for administrator privileges
+        // In a real implementation, this would use Windows API to check privileges
+        #[cfg(target_os = "windows")]
+        {
+            use std::process::Command;
+            if let Ok(output) = Command::new("net")
+                .args(&["session"])
+                .output()
+            {
+                return output.status.success();
+            }
+        }
+
+        // For non-Windows or fallback, assume admin
+        #[cfg(not(target_os = "windows"))]
+        {
+            return true;
+        }
+
+        #[cfg(target_os = "windows")]
+        {
+            // Fallback for Windows
+            return true;
+        }
+    }
+}
+
 use data_manager::DataManager;
 use packet_capture::PacketCapture;
 use web_server::WebServer;
@@ -27,17 +149,17 @@ pub struct MeterCore {
 
 impl MeterCore {
     /// Create a new MeterCore instance for standalone use
-    pub async fn new() -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
+    pub async fn new() -> std::result::Result<Self, Box<dyn std::error::Error + Send + Sync>> {
         Self::new_with_config_mode(false).await
     }
 
     /// Create a new MeterCore instance with Tauri configuration
-    pub async fn new_with_config() -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
+    pub async fn new_with_config() -> std::result::Result<Self, Box<dyn std::error::Error + Send + Sync>> {
         Self::new_with_config_mode(true).await
     }
 
     /// Internal method to create MeterCore with configuration mode
-    async fn new_with_config_mode(use_tauri_config: bool) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
+    async fn new_with_config_mode(use_tauri_config: bool) -> std::result::Result<Self, Box<dyn std::error::Error + Send + Sync>> {
         // Parse command line arguments
         let args = AppArgs::parse();
 
@@ -89,7 +211,7 @@ impl MeterCore {
         })
     }
 
-    pub async fn start(&mut self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    pub async fn start(&mut self) -> std::result::Result<(), Box<dyn std::error::Error + Send + Sync>> {
         // Initialize packet capture
         let packet_capture = PacketCapture::new(self.data_manager.clone());
         self.packet_capture = Some(packet_capture);
@@ -150,7 +272,7 @@ impl MeterCore {
         Ok(())
     }
 
-    pub async fn stop(&mut self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    pub async fn stop(&mut self) -> std::result::Result<(), Box<dyn std::error::Error + Send + Sync>> {
         info!("Stopping Meter Core...");
 
         // Stop all tasks
