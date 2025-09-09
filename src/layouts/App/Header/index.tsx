@@ -65,9 +65,7 @@ const AppHeader: FC<IProps> = ({ className, ...rest }) => {
             onClick={togglePin}
             title="置顶"
           >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M19 13H5v-2h14v2z" />
-            </svg>
+            置顶
           </Button>
           <Button
             className="ui-btn-ghost ui-btn-xs"

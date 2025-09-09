@@ -16,6 +16,11 @@ const navItems: INavItem[] = [
     lazy: async () => import('@/pages/Edit'),
     icon: null,
   },
+  {
+    path: 'logs',
+    lazy: async () => import('@/pages/Test'),
+    icon: null,
+  },
 ];
 
 const v1: RouteObject[] = [
