@@ -63,7 +63,6 @@ async fn main() -> Result<()> {
             //     warn!("error setting up database: {e}");
             // }
 
-
             let app_path = std::env::current_exe()?.display().to_string();
             app.manage(AutoLaunchManager::new(&app.package_info().name, &app_path));
 
@@ -157,8 +156,9 @@ async fn cleanup_on_shutdown() {
     #[cfg(target_os = "windows")]
     {
         info!("Performing WinDivert cleanup...");
-        // Log the cleanup action since actual implementation depends on packet_capture
-        warn!("WinDivert cleanup logged - implement actual driver stop if needed");
+        stop_driver();
+        remove_driver();
+        warn!("WinDivert cleanup logged");
     }
 
     info!("Cleanup completed");
