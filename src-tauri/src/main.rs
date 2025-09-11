@@ -53,8 +53,6 @@ async fn main() -> Result<()> {
         .invoke_handler(tauri::generate_handler![
             toggle_always_on_top,
             toggle_clickthrough,
-            remove_driver,
-            stop_driver,
         ])
         .setup(|app| {
             info!("starting app v{}", app.package_info().version);
@@ -153,41 +151,8 @@ async fn cleanup_on_shutdown() {
     }
 
     // Additional WinDivert cleanup if needed
-    #[cfg(target_os = "windows")]
-    {
-        info!("Performing WinDivert cleanup...");
-        stop_driver();
-        remove_driver();
-        warn!("WinDivert cleanup logged");
-    }
 
     info!("Cleanup completed");
-}
-
-#[tauri::command]
-fn remove_driver() {
-    #[cfg(target_os = "windows")]
-    {
-        use app::compat::Command;
-        let status = Command::new("sc").args(["delete", "windivert"]).status();
-
-        status.expect("unable to delete driver");
-    }
-}
-
-#[tauri::command]
-fn stop_driver() {
-    #[cfg(target_os = "windows")]
-    {
-        use app::compat::Command;
-        let status = Command::new("sc").args(["stop", "windivert"]).status();
-
-        if status.is_ok_and(|status| status.success()) {
-            info!("stopped driver");
-        } else {
-            warn!("could not execute command to stop driver");
-        }
-    }
 }
 
 #[tauri::command]
